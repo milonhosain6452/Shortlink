@@ -1,126 +1,83 @@
-import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from flask import Flask
-import re
-import requests
+import threading
+import os
+import random
+import string
 
+# ----------------- API CONFIG -----------------
 API_ID = 22134923
 API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
 OWNER_ID = 7383046042
 
-app = Flask(__name__)
-
+# ----------------- BOT INIT -----------------
 bot = Client(
-    "TeraBoxShortLinkBot",
+    "short_link_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
 )
 
-TERABOX_PATTERN = r"https?://(?:1024terabox\.com|terafileshare\.com)/s/[a-zA-Z0-9\-_]+"
-SHORT_API = "http://teraboxshortlink.com/9dDtqLnTx?url={}"
+# ----------------- SHORT LINK GENERATOR -----------------
+def generate_short_link(original_url):
+    random_id = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    return f"https://short.link/{random_id}"  # Replace with your own domain if needed
 
-user_data = {}
+# ----------------- COMMANDS -----------------
 
-# ---------- Start Command ----------
 @bot.on_message(filters.command("start") & filters.private)
-async def start_cmd(client, message: Message):
+async def start(_, message: Message):
     await message.reply_text(
-        "✅ Bot is running.\n\nUse /help to see available commands."
+        "👋 Welcome to the Short Link Bot!\n\n"
+        "🔗 Send /short <your_link> to get a short version.\n"
+        "ℹ️ Use /api to get API access.\n"
+        "❓ Use /help for help."
     )
 
-# ---------- Help & Feature ----------
 @bot.on_message(filters.command("help") & filters.private)
-async def help_cmd(client, message: Message):
+async def help(_, message: Message):
     await message.reply_text(
-        "/start - Check if bot is alive\n"
-        "/api <your_api_link>\n"
-        "/add_channel <channel_link>\n"
-        "/footer <your footer>\n"
-        "/unlink\n/remove_channel\n/remove_footer\n"
-        "/features - Show all features\n"
-        "/link - How to link API"
+        "🆘 **Help Menu**\n\n"
+        "• `/short <link>` - Get a short link.\n"
+        "• `/api` - Learn how to use API.\n"
+        "• `/start` - Check if bot is running.\n\n"
+        "👨‍💻 Developer: @YourUsername"
     )
 
-@bot.on_message(filters.command("features") & filters.private)
-async def features_cmd(client, message: Message):
-    await message.reply_text("🔗 Converts terabox links\n📝 Keeps original text\n👤 Owner-only")
+@bot.on_message(filters.command("api") & filters.private)
+async def api(_, message: Message):
+    await message.reply_text(
+        "🧠 **Short Link API Usage**:\n\n"
+        "`https://yourdomain.com/api?url=YOUR_LINK`\n\n"
+        "Example:\n`https://yourdomain.com/api?url=https://google.com`\n\n"
+        "🔐 Replace `yourdomain.com` with your own domain or IP."
+    )
 
-@bot.on_message(filters.command("link") & filters.private)
-async def link_cmd(client, message: Message):
-    await message.reply_text("Send: /api <API link>\nExample:\n/api http://teraboxshortlink.com/9dDtqLnTx")
-
-# ---------- Settings ----------
-@bot.on_message(filters.command("api") & filters.user(OWNER_ID))
-async def set_api(client, message: Message):
-    try:
-        user_data["api"] = message.text.split(None, 1)[1]
-        await message.reply_text("✅ API saved.")
-    except:
-        await message.reply_text("⚠️ Usage:\n/api <your_api_link>")
-
-@bot.on_message(filters.command("add_channel") & filters.user(OWNER_ID))
-async def set_channel(client, message: Message):
-    try:
-        user_data["channel"] = message.text.split(None, 1)[1]
-        await message.reply_text("✅ Channel link saved.")
-    except:
-        await message.reply_text("⚠️ Usage:\n/add_channel <channel_link>")
-
-@bot.on_message(filters.command("footer") & filters.user(OWNER_ID))
-async def set_footer(client, message: Message):
-    try:
-        user_data["footer"] = message.text.split(None, 1)[1]
-        await message.reply_text("✅ Footer saved.")
-    except:
-        await message.reply_text("⚠️ Usage:\n/footer <your_footer>")
-
-# ---------- Unlink Commands ----------
-@bot.on_message(filters.command("unlink") & filters.user(OWNER_ID))
-async def unlink_api(client, message: Message):
-    user_data.pop("api", None)
-    await message.reply_text("❌ API removed.")
-
-@bot.on_message(filters.command("remove_channel") & filters.user(OWNER_ID))
-async def remove_channel(client, message: Message):
-    user_data.pop("channel", None)
-    await message.reply_text("❌ Channel link removed.")
-
-@bot.on_message(filters.command("remove_footer") & filters.user(OWNER_ID))
-async def remove_footer(client, message: Message):
-    user_data.pop("footer", None)
-    await message.reply_text("❌ Footer removed.")
-
-# ---------- Message Handler ----------
-@bot.on_message(filters.private & filters.user(OWNER_ID))
-async def replace_links(client, message: Message):
-    if "api" not in user_data:
-        await message.reply_text("⚠️ First, set your API using /api")
+@bot.on_message(filters.command("short") & filters.private)
+async def short(_, message: Message):
+    if len(message.command) < 2:
+        await message.reply_text("❌ Please provide a link!\nUsage: /short https://example.com")
         return
+    original_link = message.text.split(None, 1)[1]
+    short_link = generate_short_link(original_link)
+    await message.reply_text(
+        f"✅ Here is your short link:\n\n🔗 {short_link}"
+    )
 
-    matches = re.findall(TERABOX_PATTERN, message.text or "")
-    if not matches:
-        await message.reply_text("❌ No valid terabox links found.")
-        return
+# ----------------- FLASK SERVER FOR RENDER -----------------
+app = Flask(__name__)
 
-    updated_text = message.text
-    for link in matches:
-        short_link = requests.get(user_data["api"] + f"?url={link}").text
-        updated_text = updated_text.replace(link, short_link.strip())
-
-    if "footer" in user_data:
-        updated_text += f"\n\n{user_data['footer']}"
-
-    await message.reply_text(updated_text)
-
-# ---------- Flask Dummy Server ----------
 @app.route('/')
 def home():
-    return "TeraBox ShortLink Bot is running!"
+    return "✅ Bot is Alive!"
 
+# ----------------- RUN -----------------
 if __name__ == "__main__":
-    import threading
-    threading.Thread(target=lambda: bot.run()).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    threading.Thread(
+        target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080))),
+        daemon=True
+    ).start()
+
+    bot.run()
