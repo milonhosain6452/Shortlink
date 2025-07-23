@@ -6,14 +6,14 @@ services:
     startCommand: python bot.py
     envVars:
       - key: API_ID
-        value: 22134923
+        value: "22134923"
       - key: API_HASH
-        value: d3e9d2f01d3291e87ea65298317f86b8
+        value: "d3e9d2f01d3291e87ea65298317f86b8"
       - key: BOT_TOKEN
-        value: 8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw
+        value: "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
       - key: OWNER_ID
-        value: 7383046042
+        value: "7383046042"
       - key: SHORTLINK_API_TOKEN
-        value: 04e8ee10b5f123456a640c8f33195abc
+        value: "04e8ee10b5f123456a640c8f33195abc"
       - key: SHORTLINK_DOMAIN
-        value: teraboxshortlink.hstn.me
+        value: "teraboxshortlink.hstn.me"
