@@ -1,59 +1,52 @@
 import os
+import re
 import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from flask import Flask
-from threading import Thread
 
-# --- API Config ---
 API_ID = 22134923
 API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
 OWNER_ID = 7383046042
 SHORTLINK_DOMAIN = "teraboxshortlink.hstn.me"
 
-# --- Flask Web Server for Render.com keepalive ---
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# --- Pyrogram Bot Setup ---
 bot = Client("shortlink-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-@bot.on_message(filters.command("start") & filters.private)
-async def start_handler(client, message: Message):
-    await message.reply_text("👋 Welcome! Send me a Terabox link and I will generate a shortlink.")
+TERABOX_REGEX = re.compile(
+    r"(https?://)?(www\.)?(terabox(app|links|sharelink)?\.com|teraboxapp\.com)/[^\s]+"
+)
 
-@bot.on_message(filters.private & filters.text & ~filters.command(["start"]))
-async def shortlink_handler(client, message: Message):
-    url = message.text.strip()
+@bot.on_message(filters.command("start"))
+async def start_handler(_, msg: Message):
+    await msg.reply("👋 Send me any Terabox link to get a shortlink.")
 
-    if "terabox" not in url:
-        await message.reply_text("❌ Please send a valid Terabox link.")
+@bot.on_message(filters.private & filters.text)
+async def link_handler(_, msg: Message):
+    text = msg.text.strip()
+    match = TERABOX_REGEX.search(text)
+
+    if not match:
+        await msg.reply("❌ Please send a valid Terabox link.")
         return
 
-    await message.reply_text("🔗 Generating shortlink...")
+    terabox_link = match.group(0)
+
+    await msg.reply("🔗 Generating shortlink...")
 
     try:
-        res = requests.get(f"https://{SHORTLINK_DOMAIN}/api.php?url={url}")
-        shortlink = res.text.strip()
+        response = requests.get(
+            f"https://{SHORTLINK_DOMAIN}/redirect.php",
+            params={"go": terabox_link},
+            timeout=10
+        )
 
-        if "http" in shortlink:
-            await message.reply_text(f"✅ Your shortlink:\n{shortlink}")
+        if response.status_code == 200 and "redirect.php?go=" in response.url:
+            short_url = response.url
+            await msg.reply(f"✅ Your shortlink:\n{short_url}")
         else:
-            await message.reply_text(f"⚠️ Error: {shortlink}")
-    except Exception as e:
-        await message.reply_text(f"⚠️ Error: {e}")
+            await msg.reply("⚠️ Error: Failed to get a proper shortlink response.")
 
-# --- Start ---
-keep_alive()
+    except requests.exceptions.RequestException as e:
+        await msg.reply(f"⚠️ Error: {e}")
+
 bot.run()
