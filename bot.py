@@ -1,97 +1,40 @@
-# bot.py
-import json
 import requests
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
-)
-from keep_alive import keep_alive
+from pyrogram import Client, filters
 
-# Bot credentials
 API_ID = 22134923
 API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
 OWNER_ID = 7383046042
+API_URL = "https://www.teraboxlink.free.nf/wp-content/plugins/api-tools-plugin/includes/api.php"
+API_TOKEN = "wee8waHqPfONKWLACr18j4B99nk6Y2jz"
 
-# Token save file
-TOKEN_FILE = "tokens.json"
+app = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Website API Endpoint
-API_ENDPOINT = "https://www.teraboxlink.free.nf/wp-content/plugins/api-tools-plugin/includes/api.php"
+@app.on_message(filters.command("start"))
+async def start_command(client, message):
+    await message.reply("👋 Welcome! Send me a Terabox link to shorten.")
 
-# Function: Load all tokens
-def load_tokens():
+@app.on_message(filters.text & filters.private)
+async def shorten_link(client, message):
+    if not message.text.startswith("https://terabox.com/s/"):
+        await message.reply("❌ Please send a valid Terabox link.")
+        return
+
+    url = message.text.strip()
+    params = {
+        "token": API_TOKEN,
+        "url": url
+    }
+
     try:
-        with open(TOKEN_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+        response = requests.get(API_URL, params=params)
+        data = response.json()
 
-# Function: Save tokens
-def save_tokens(tokens):
-    with open(TOKEN_FILE, "w") as f:
-        json.dump(tokens, f)
-
-# Command: /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome! Use /gen <terabox_link> to shorten your link.\n\n"
-        "🔐 Only owner can update API token using /settoken"
-    )
-
-# Command: /settoken (owner only)
-async def settoken(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
-        return
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /settoken <your_token>")
-        return
-
-    token = context.args[0]
-    tokens = load_tokens()
-    tokens[str(OWNER_ID)] = token
-    save_tokens(tokens)
-
-    await update.message.reply_text("✅ Token saved successfully.")
-
-# Command: /gen <link>
-async def gen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    tokens = load_tokens()
-
-    if user_id not in tokens:
-        await update.message.reply_text("⚠️ No API token found. Only the owner can set it using /settoken.")
-        return
-
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /gen <terabox_link>")
-        return
-
-    url = context.args[0]
-    token = tokens[user_id]
-
-    api_url = f"{API_ENDPOINT}?token={token}&url={url}"
-    try:
-        response = requests.get(api_url)
-        result = response.text
-
-        if "http" in result:
-            await update.message.reply_text(f"✅ Generated Link:\n{result}")
+        if "short_url" in data:
+            await message.reply(f"✅ Shortened Link:\n{data['short_url']}")
         else:
-            await update.message.reply_text(f"❌ Error: {result}")
+            await message.reply(f"❌ Error: {data.get('error', 'Unknown error')}")
     except Exception as e:
-        await update.message.reply_text(f"⚠️ Failed to fetch shortlink.\nError: {e}")
+        await message.reply(f"❌ Failed to shorten link.\nError: {str(e)}")
 
-# Run the bot
-if __name__ == "__main__":
-    keep_alive()
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("settoken", settoken))
-    app.add_handler(CommandHandler("gen", gen))
-
-    print("🤖 Bot is running...")
-    app.run_polling()
+app.run()
