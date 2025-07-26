@@ -8,6 +8,8 @@ from telegram.ext import (
 from keep_alive import keep_alive
 
 # Bot credentials
+API_ID = 22134923
+API_HASH = ''d3e9d2f01d3291e87ea65298317f86b8''
 BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
 OWNER_ID = 7383046042
 
