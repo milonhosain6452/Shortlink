@@ -1,40 +1,97 @@
-import os
+# bot.py
+import json
 import requests
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes
+)
+from keep_alive import keep_alive
 
+# Bot credentials
 API_ID = 22134923
 API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
 BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
-SHORTLINK_DOMAIN = "teraboxshortlink.hstn.me"
+OWNER_ID = 7383046042
 
-bot = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# Token save file
+TOKEN_FILE = "tokens.json"
 
-@bot.on_message(filters.command("start"))
-async def start_command(client, message):
-    await message.reply("👋 Send me a Terabox link and I’ll return a shortlink.")
+# Website API Endpoint
+API_ENDPOINT = "https://www.teraboxlink.free.nf/wp-content/plugins/api-tools-plugin/includes/api.php"
 
-@bot.on_message(filters.private & filters.text)
-async def generate_shortlink(client, message: Message):
-    original_link = message.text.strip()
-    if not original_link.startswith("http") or "terabox" not in original_link:
-        await message.reply("❌ Please send a valid Terabox link.")
+# Function: Load all tokens
+def load_tokens():
+    try:
+        with open(TOKEN_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# Function: Save tokens
+def save_tokens(tokens):
+    with open(TOKEN_FILE, "w") as f:
+        json.dump(tokens, f)
+
+# Command: /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Welcome! Use /gen <terabox_link> to shorten your link.\n\n"
+        "🔐 Only owner can update API token using /settoken"
+    )
+
+# Command: /settoken (owner only)
+async def settoken(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        await update.message.reply_text("❌ You are not authorized to use this command.")
         return
 
-    await message.reply("🔗 Generating shortlink...")
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /settoken <your_token>")
+        return
 
+    token = context.args[0]
+    tokens = load_tokens()
+    tokens[str(OWNER_ID)] = token
+    save_tokens(tokens)
+
+    await update.message.reply_text("✅ Token saved successfully.")
+
+# Command: /gen <link>
+async def gen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    tokens = load_tokens()
+
+    if user_id not in tokens:
+        await update.message.reply_text("⚠️ No API token found. Only the owner can set it using /settoken.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /gen <terabox_link>")
+        return
+
+    url = context.args[0]
+    token = tokens[user_id]
+
+    api_url = f"{API_ENDPOINT}?token={token}&url={url}"
     try:
-        res = requests.get(
-            f"https://{SHORTLINK_DOMAIN}/redirect.php",
-            params={"go": original_link},
-            timeout=10
-        )
+        response = requests.get(api_url)
+        result = response.text
 
-        if res.status_code == 200 and "redirect.php?go=" in res.url:
-            await message.reply(f"✅ Your shortlink:\n{res.url}")
+        if "http" in result:
+            await update.message.reply_text(f"✅ Generated Link:\n{result}")
         else:
-            await message.reply("⚠️ Failed to generate shortlink. Try again later.")
+            await update.message.reply_text(f"❌ Error: {result}")
     except Exception as e:
-        await message.reply(f"⚠️ Error: {str(e)}")
+        await update.message.reply_text(f"⚠️ Failed to fetch shortlink.\nError: {e}")
 
-bot.run()
+# Run the bot
+if __name__ == "__main__":
+    keep_alive()
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("settoken", settoken))
+    app.add_handler(CommandHandler("gen", gen))
+
+    print("🤖 Bot is running...")
+    app.run_polling()
