@@ -4,3 +4,4 @@ aiohttp
 fastapi
 uvicorn
 requests
+python-telegram-bot==13.15
