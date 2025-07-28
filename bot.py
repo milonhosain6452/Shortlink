@@ -6,10 +6,10 @@ from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-API_ID = int(os.getenv("22134923"))
-API_HASH = os.getenv("d3e9d2f01d3291e87ea65298317f86b8")
-BOT_TOKEN = os.getenv("8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw")
-OWNER_ID = int(os.getenv("7383046042"))
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
 DATA_FILE = "data.json"
 DOMAIN = "https://teraboxlink.free.nf/"  # তোমার ডোমেইন
