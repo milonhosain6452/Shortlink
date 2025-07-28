@@ -1,63 +1,85 @@
 import os
 import json
-import random
 import string
+import random
+from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from flask import Flask
 import threading
 
-# Credentials
-API_ID = 18088290
-API_HASH = "1b06cbb45d19188307f10bcf275341c5"
-BOT_TOKEN = "7628770960:AAHKgUwOAtrolkpN4hU58ISbsZDWyIP6324"
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# Shortlink Webserver Domain
-WEB_DOMAIN = "https://yourdomain.com"  # ✅ Change this to your domain
-
-# Data file
 DATA_FILE = "data.json"
+DOMAIN = "https://teraboxlink.free.nf/"  # শর্টলিংক ডোমেইন শেষ / দিয়ে শেষ করতে হবে
+
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
         json.dump({"links": {}, "generated_count": 0}, f)
 
-# Initialize Bot
-app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-# Command Handler: /genlink <t.me/c/...> 
-@app.on_message(filters.command("genlink") & filters.private)
-async def genlink_handler(client: Client, message: Message):
-    if len(message.command) < 2:
-        return await message.reply("🔗 দয়া করে একটি ভিডিও লিংক দিন:\n`/genlink <t.me/c/...>`")
-
-    original_url = message.command[1]
-    short_key = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-    short_url = f"{WEB_DOMAIN}/redirect.php?go={short_key}"
-
-    # Save to data.json
+def load_data():
     with open(DATA_FILE, "r") as f:
-        data = json.load(f)
-    data['links'][short_key] = {
-        "original": original_url,
-        "clicks": 0
-    }
-    data['generated_count'] += 1
+        return json.load(f)
+
+def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=4)
 
-    await message.reply(f"✅ Shortlink Generated:\n🔗 `{short_url}`", quote=True)
+def generate_code(length=6):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-# Flask for Replit/Render uptime ping
-flask_app = Flask(__name__)
+bot = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-@flask_app.route('/')
+@bot.on_message(filters.command("start") & filters.private)
+async def start(_, msg: Message):
+    await msg.reply("👋 Send me a link and I will give you a short link!")
+
+@bot.on_message(filters.private & filters.text)
+async def shorten(_, msg: Message):
+    url = msg.text.strip()
+    if not url.startswith("http"):
+        await msg.reply("❌ Invalid URL!")
+        return
+
+    data = load_data()
+
+    # Check if link already exists
+    for code, info in data["links"].items():
+        if info.get("original") == url:
+            short_url = f"{DOMAIN}{code}"
+            await msg.reply(f"🔗 Short Link: {short_url}")
+            return
+
+    # New code
+    code = generate_code()
+    while code in data["links"]:
+        code = generate_code()
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data["links"][code] = {
+        "original": url,
+        "clicks": 0,
+        "created": now
+    }
+    data["generated_count"] = data.get("generated_count", 0) + 1
+
+    save_data(data)
+    short_url = f"{DOMAIN}{code}"
+    await msg.reply(f"✅ Short Link Created:\n\n🔗 {short_url}")
+
+# --- Flask Server for Render ---
+app = Flask(__name__)
+
+@app.route('/')
 def home():
-    return "Bot is running!"
+    return "✅ Shortlink Bot is Running!"
 
 def run_flask():
-    flask_app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
-# Start everything
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
-    app.run()
+    bot.run()
