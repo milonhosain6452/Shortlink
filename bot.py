@@ -13,7 +13,7 @@ BOT_TOKEN = "8303642695:AAGs0HhQo2fGNTRRVIX4APFcHq7AbpstmlI"
 OWNER_ID = "7383046042"
 
 # --- Shortlink settings ---
-SHORTLINK_DOMAIN = "https://yourdomain.com"  # change to your domain
+SHORTLINK_DOMAIN = "https://teraboxlink.free.nf"  # change to your domain
 DATA_FILE = "shortlinks/data.json"
 
 # --- Load data.json ---
