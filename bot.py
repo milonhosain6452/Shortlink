@@ -1,64 +1,78 @@
-import os
 import json
-import random
 import string
+import random
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from flask import Flask
+import threading
 
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-OWNER_ID = int(os.environ.get("OWNER_ID"))  # optional: only allow you to generate
+# --- Bot Credentials ---
+API_ID = 18088290
+API_HASH = "1b06cbb45d19188307f10bcf275341c5"
+BOT_TOKEN = "7628770960:AAHKgUwOAtrolkpN4hU58ISbsZDWyIP6324"
 
-DATA_FILE = "data.json"
-SHORTLINK_DOMAIN = "https://teraboxlink.free.nf"  # your domain here
+# --- Shortlink settings ---
+SHORTLINK_DOMAIN = "https://yourdomain.com"  # change to your domain
+DATA_FILE = "shortlinks/data.json"
 
-app = Client("shortlink-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-
-def generate_code(length=6):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-
+# --- Load data.json ---
 def load_data():
-    if not os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "w") as f:
-            json.dump({"links": [], "generated_count": 0}, f)
-    with open(DATA_FILE) as f:
+    with open(DATA_FILE, "r") as f:
         return json.load(f)
-
 
 def save_data(data):
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=4)
 
+# --- Generate random shortcode ---
+def generate_shortcode(length=6):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-@app.on_message(filters.command("start"))
-async def start(_, message: Message):
-    await message.reply("👋 Send me a link and I will give you a short link!")
+# --- Bot setup ---
+app = Flask(__name__)
+bot = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
+@app.route("/")
+def home():
+    return "✅ Bot is running!"
 
-@app.on_message(filters.text & ~filters.command(["start"]))
-async def shortlink(_, message: Message):
-    url = message.text.strip()
-    if not url.startswith("http"):
-        await message.reply("❌ Invalid link.")
+@bot.on_message(filters.command("start"))
+def start_command(client, message):
+    message.reply_text("👋 Send me any link, and I'll give you a shortlink.")
+
+@bot.on_message(filters.text & ~filters.command(["start"]))
+def shortlink_handler(client, message: Message):
+    original_url = message.text.strip()
+    if not original_url.startswith("http"):
+        message.reply("❌ Invalid URL")
         return
 
     data = load_data()
-    existing = next((link for link in data["links"] if link["original_url"] == url), None)
-    if existing:
-        short = f"{SHORTLINK_DOMAIN}/{existing['code']}"
-        await message.reply(f"✅ Already shortened:\n{short}")
-        return
 
-    code = generate_code()
-    data["links"].append({"original_url": url, "code": code, "clicks": 0})
+    # Check if already shortened
+    for shortcode, info in data["links"].items():
+        if info["url"] == original_url:
+            shortlink = f"{SHORTLINK_DOMAIN}/{shortcode}"
+            message.reply(f"🔗 Shortlink: {shortlink}")
+            return
+
+    # Generate new shortlink
+    shortcode = generate_shortcode()
+    data["links"][shortcode] = {
+        "url": original_url,
+        "clicks": 0
+    }
     data["generated_count"] += 1
     save_data(data)
 
-    short_url = f"{SHORTLINK_DOMAIN}/{code}"
-    await message.reply(f"✅ Shortlink:\n{short_url}")
+    shortlink = f"{SHORTLINK_DOMAIN}/{shortcode}"
+    message.reply(f"✅ Shortlink generated:\n{shortlink}")
 
+# --- Flask runner ---
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
 
-app.run()
+threading.Thread(target=run_flask).start()
+
+# --- Start bot ---
+bot.run()
