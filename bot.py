@@ -5,6 +5,8 @@ import random
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from flask import Flask
+import threading
 
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
@@ -44,7 +46,6 @@ async def shorten(_, msg: Message):
 
     data = load_data()
 
-    # Check if URL already exists
     for code, info in data["links"].items():
         if info.get("original_url") == url or info.get("original") == url:
             short_url = f"{DOMAIN}{code}"
@@ -57,7 +58,6 @@ async def shorten(_, msg: Message):
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Compatibility with your data.json format
     data["links"][code] = {
         "original": url,
         "clicks": 0,
@@ -69,4 +69,17 @@ async def shorten(_, msg: Message):
     short_url = f"{DOMAIN}{code}"
     await msg.reply(f"✅ Short Link Created:\n\n🔗 {short_url}")
 
-bot.run()
+# --- Flask server setup for Render port binding ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+
+# --- Final Start ---
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    bot.run()
