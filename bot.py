@@ -14,7 +14,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
 DATA_FILE = "data.json"
-DOMAIN = "https://teraboxlink.free.nf/"  # তোমার ডোমেইন
+DOMAIN = "https://teraboxlink.free.nf/"  # তোমার শর্টলিংক ডোমেইন
 
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, "w") as f:
@@ -47,7 +47,7 @@ async def shorten(_, msg: Message):
     data = load_data()
 
     for code, info in data["links"].items():
-        if info.get("original_url") == url or info.get("original") == url:
+        if info.get("original") == url:
             short_url = f"{DOMAIN}{code}"
             await msg.reply(f"🔗 Short Link: {short_url}")
             return
@@ -69,17 +69,17 @@ async def shorten(_, msg: Message):
     short_url = f"{DOMAIN}{code}"
     await msg.reply(f"✅ Short Link Created:\n\n🔗 {short_url}")
 
-# --- Flask server setup for Render port binding ---
+# --- Flask Server for Render (to detect active port) ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return "✅ Shortlink Bot is Running!"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
-# --- Final Start ---
+# --- Run both Flask & Bot ---
 if __name__ == "__main__":
     threading.Thread(target=run_flask).start()
     bot.run()
