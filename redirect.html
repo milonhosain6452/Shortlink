@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting...</title>
+    <!-- আপনার CSS স্টাইল এখানে যোগ করুন -->
+</head>
+<body>
+    <div class="container">
+        <h2>দয়া করে অপেক্ষা করুন...</h2>
+        <p>আপনার লিঙ্ক লোড হচ্ছে</p>
+        <div class="loader"></div>
+        <div id="countdown">৫ সেকেন্ড বাকি...</div>
+
+        <!-- এড এম্বেড -->
+        <iframe class="adframe" src="{{ ad_url }}"></iframe>
+    </div>
+
+    <script>
+        let seconds = 5;
+        const countdownEl = document.getElementById("countdown");
+
+        const interval = setInterval(() => {
+            seconds--;
+            if (seconds > 0) {
+                countdownEl.innerText = seconds + " সেকেন্ড বাকি...";
+            } else {
+                clearInterval(interval);
+                countdownEl.innerText = "Redirecting...";
+                window.location.href = "{{ final_url }}";
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
