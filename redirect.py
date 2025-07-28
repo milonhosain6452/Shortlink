@@ -1,4 +1,4 @@
-from flask import Flask, redirect, abort
+from flask import Flask, redirect
 import json
 
 app = Flask(__name__)
@@ -15,9 +15,11 @@ def shortlink(code):
     if not info:
         return "Invalid or expired link.", 404
 
-    url = info.get("original_url") or info.get("original")
+    url = info.get("original")
+    if not url:
+        return "Invalid or expired link.", 404
 
-    # Count click
+    # Update click count
     info["clicks"] = info.get("clicks", 0) + 1
     data["links"][code] = info
 
