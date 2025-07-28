@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Shorten Link</title>
+  <!-- আপনার CSS স্টাইল এখানে যোগ করুন -->
+</head>
+<body>
+  <div class="container">
+    <h2>🔗 Generate Short Link</h2>
+    <form id="linkForm">
+      <input type="text" name="original_url" placeholder="Enter any URL..." required>
+      <button type="submit">Generate</button>
+    </form>
+    <div id="result"></div>
+    
+    <!-- টোটাল স্ট্যাটস -->
+    <div class="info-table">
+      <table>
+        <tr>
+          <th>Total Links</th>
+          <th>Total Clicks</th>
+        </tr>
+        <tr>
+          <td>{{ total_links }}</td>
+          <td>{{ total_clicks }}</td>
+        </tr>
+      </table>
+    </div>
+    
+    <!-- লিঙ্ক লিস্ট -->
+    <div class="link-list">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Original Link</th>
+            <th>Short Link</th>
+            <th>Clicks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for link in links %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><a href="{{ link[1] }}" target="_blank">{{ link[1] }}</a></td>
+            <td><a href="{{ request.host_url }}{{ link[0] }}" target="_blank">{{ request.host_url }}{{ link[0] }}</a></td>
+            <td>{{ link[2] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <script>
+    document.getElementById("linkForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const response = await fetch("/generate", {
+        method: "POST",
+        body: formData
+      });
+      const result = await response.json();
+      
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = `
+        <div class="output">
+          <p><strong>Original:</strong> ${result.original_url}</p>
+          <p><strong>Shortened:</strong> <a href="${result.short_url}" target="_blank">${result.short_url}</a></p>
+        </div>
+      `;
+    });
+  </script>
+</body>
+</html>
