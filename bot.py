@@ -1,85 +1,64 @@
 import os
 import json
-import string
 import random
-from datetime import datetime
+import string
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from flask import Flask
-import threading
 
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID"))
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+OWNER_ID = int(os.environ.get("OWNER_ID"))  # optional: only allow you to generate
 
 DATA_FILE = "data.json"
-DOMAIN = "https://teraboxlink.free.nf/"  # শর্টলিংক ডোমেইন শেষ / দিয়ে শেষ করতে হবে
+SHORTLINK_DOMAIN = "https://teraboxlink.free.nf"  # your domain here
 
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w") as f:
-        json.dump({"links": {}, "generated_count": 0}, f)
+app = Client("shortlink-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-def load_data():
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
-
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
 
 def generate_code(length=6):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-bot = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-@bot.on_message(filters.command("start") & filters.private)
-async def start(_, msg: Message):
-    await msg.reply("👋 Send me a link and I will give you a short link!")
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w") as f:
+            json.dump({"links": [], "generated_count": 0}, f)
+    with open(DATA_FILE) as f:
+        return json.load(f)
 
-@bot.on_message(filters.private & filters.text)
-async def shorten(_, msg: Message):
-    url = msg.text.strip()
+
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+@app.on_message(filters.command("start"))
+async def start(_, message: Message):
+    await message.reply("👋 Send me a link and I will give you a short link!")
+
+
+@app.on_message(filters.text & ~filters.command(["start"]))
+async def shortlink(_, message: Message):
+    url = message.text.strip()
     if not url.startswith("http"):
-        await msg.reply("❌ Invalid URL!")
+        await message.reply("❌ Invalid link.")
         return
 
     data = load_data()
+    existing = next((link for link in data["links"] if link["original_url"] == url), None)
+    if existing:
+        short = f"{SHORTLINK_DOMAIN}/{existing['code']}"
+        await message.reply(f"✅ Already shortened:\n{short}")
+        return
 
-    # Check if link already exists
-    for code, info in data["links"].items():
-        if info.get("original") == url:
-            short_url = f"{DOMAIN}{code}"
-            await msg.reply(f"🔗 Short Link: {short_url}")
-            return
-
-    # New code
     code = generate_code()
-    while code in data["links"]:
-        code = generate_code()
-
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data["links"][code] = {
-        "original": url,
-        "clicks": 0,
-        "created": now
-    }
-    data["generated_count"] = data.get("generated_count", 0) + 1
-
+    data["links"].append({"original_url": url, "code": code, "clicks": 0})
+    data["generated_count"] += 1
     save_data(data)
-    short_url = f"{DOMAIN}{code}"
-    await msg.reply(f"✅ Short Link Created:\n\n🔗 {short_url}")
 
-# --- Flask Server for Render ---
-app = Flask(__name__)
+    short_url = f"{SHORTLINK_DOMAIN}/{code}"
+    await message.reply(f"✅ Shortlink:\n{short_url}")
 
-@app.route('/')
-def home():
-    return "✅ Shortlink Bot is Running!"
 
-def run_flask():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
-if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    bot.run()
+app.run()
