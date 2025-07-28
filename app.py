@@ -15,8 +15,11 @@ OWNER_ID = 7383046042
 # Adsterra AD URL (আপনার দেওয়া)
 AD_URL = "https://www.profitableratecpm.com/wdwn7wjiy?key=f8f5344e7390639ff8c5563ee357acf8"
 
-# ডাটাবেস সেটআপ
+# ডাটাবেস সেটআপ (Render-ফ্রেন্ডলি)
 def init_db():
+    # 'data' ফোল্ডার তৈরি করুন (যদি না থাকে)
+    os.makedirs('data', exist_ok=True)
+    
     conn = sqlite3.connect('data/database.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -36,18 +39,16 @@ def generate_short_code(length=6):
     chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     return ''.join(secrets.choice(chars) for _ in range(length))
 
-# হোমপেজ (ইন্ডেক্স.পিএইচপি-র মতো)
+# হোমপেজ
 @app.route('/')
 def index():
     conn = sqlite3.connect('data/database.db')
     cursor = conn.cursor()
     
-    # টোটাল লিঙ্ক ও ক্লিক কাউন্ট
     cursor.execute("SELECT COUNT(*), SUM(clicks) FROM links")
     total_links, total_clicks = cursor.fetchone()
     total_clicks = total_clicks or 0
     
-    # সব লিঙ্কের লিস্ট
     cursor.execute("SELECT * FROM links")
     links = cursor.fetchall()
     conn.close()
@@ -65,7 +66,6 @@ def generate_short_link():
     if not original_url:
         return "Error: URL is empty!", 400
     
-    # URL ভ্যালিডেশন
     parsed = urlparse(original_url)
     if not parsed.scheme or not parsed.netloc:
         return "Error: Invalid URL!", 400
@@ -73,7 +73,6 @@ def generate_short_link():
     conn = sqlite3.connect('data/database.db')
     cursor = conn.cursor()
     
-    # চেক করুন যদি URL ইতিমধ্যে ডাটাবেসে থাকে
     cursor.execute("SELECT short_code FROM links WHERE original_url = ?", (original_url,))
     existing = cursor.fetchone()
     
@@ -93,7 +92,7 @@ def generate_short_link():
         "short_url": short_url
     })
 
-# রিডাইরেক্ট (রিডাইরেক্ট.পিএইচপি-র মতো)
+# রিডাইরেক্ট
 @app.route('/<short_code>')
 def redirect_to_original(short_code):
     conn = sqlite3.connect('data/database.db')
@@ -107,15 +106,13 @@ def redirect_to_original(short_code):
     
     original_url = result[0]
     
-    # ক্লিক কাউন্ট আপডেট
     cursor.execute("UPDATE links SET clicks = clicks + 1 WHERE short_code = ?", (short_code,))
     conn.commit()
     conn.close()
     
-    # AD সহ রিডাইরেক্ট পেজ
     return render_template('redirect.html', 
                          final_url=original_url,
                          ad_url=AD_URL)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
