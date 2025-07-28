@@ -7,9 +7,10 @@ from flask import Flask
 import threading
 
 # --- Bot Credentials ---
-API_ID = 18088290
-API_HASH = "1b06cbb45d19188307f10bcf275341c5"
-BOT_TOKEN = "7628770960:AAHKgUwOAtrolkpN4hU58ISbsZDWyIP6324"
+API_ID = 22134923
+API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
+BOT_TOKEN = "8303642695:AAGs0HhQo2fGNTRRVIX4APFcHq7AbpstmlI"
+OWNER_ID = "7383046042"
 
 # --- Shortlink settings ---
 SHORTLINK_DOMAIN = "https://yourdomain.com"  # change to your domain
