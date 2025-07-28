@@ -1,110 +1,72 @@
-import json
-import requests
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
-)
-from fastapi import FastAPI, Request
-import uvicorn
-import asyncio
 import os
+import json
+import string
+import random
+from datetime import datetime
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
-# Bot credentials
-API_ID = 22134923
-API_HASH = "d3e9d2f01d3291e87ea65298317f86b8"
-BOT_TOKEN = "8164105880:AAEwU1JkpAVr2PVFbmoyvkt2csKinfsChFw"
-OWNER_ID = 7383046042
-WEBHOOK_URL = "https://your-render-app-name.onrender.com"  # Render app URL দিয়ে দাও
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))
 
-# Token save file
-TOKEN_FILE = "tokens.json"
-API_ENDPOINT = "https://www.teraboxlink.free.nf/wp-content/plugins/api-tools-plugin/includes/api.php"
+DATA_FILE = "data.json"
+DOMAIN = "https://teraboxlink.free.nf/"  # তোমার ডোমেইন
 
-# FastAPI app
-app = FastAPI()
+if not os.path.exists(DATA_FILE):
+    with open(DATA_FILE, "w") as f:
+        json.dump({"links": {}, "generated_count": 0}, f)
 
-# Load and Save token
-def load_tokens():
-    try:
-        with open(TOKEN_FILE, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+def load_data():
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
 
-def save_tokens(tokens):
-    with open(TOKEN_FILE, "w") as f:
-        json.dump(tokens, f)
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
-# Bot commands
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome! Use /gen <terabox_link> to shorten your link.\n\n"
-        "🔐 Only owner can update API token using /settoken"
-    )
+def generate_code(length=6):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-async def settoken(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        await update.message.reply_text("❌ You are not authorized to use this command.")
+bot = Client("shortlink_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+@bot.on_message(filters.command("start") & filters.private)
+async def start(_, msg: Message):
+    await msg.reply("👋 Send me a link and I will give you a short link!")
+
+@bot.on_message(filters.private & filters.text)
+async def shorten(_, msg: Message):
+    url = msg.text.strip()
+    if not url.startswith("http"):
+        await msg.reply("❌ Invalid URL!")
         return
 
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /settoken <your_token>")
-        return
+    data = load_data()
 
-    token = context.args[0]
-    tokens = load_tokens()
-    tokens[str(OWNER_ID)] = token
-    save_tokens(tokens)
+    # Check if URL already exists
+    for code, info in data["links"].items():
+        if info.get("original_url") == url or info.get("original") == url:
+            short_url = f"{DOMAIN}{code}"
+            await msg.reply(f"🔗 Short Link: {short_url}")
+            return
 
-    await update.message.reply_text("✅ Token saved successfully.")
+    code = generate_code()
+    while code in data["links"]:
+        code = generate_code()
 
-async def gen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    tokens = load_tokens()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    if user_id not in tokens:
-        await update.message.reply_text("⚠️ No API token found. Only the owner can set it using /settoken.")
-        return
+    # Compatibility with your data.json format
+    data["links"][code] = {
+        "original": url,
+        "clicks": 0,
+        "created": now
+    }
+    data["generated_count"] = data.get("generated_count", 0) + 1
 
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /gen <terabox_link>")
-        return
+    save_data(data)
+    short_url = f"{DOMAIN}{code}"
+    await msg.reply(f"✅ Short Link Created:\n\n🔗 {short_url}")
 
-    url = context.args[0]
-    token = tokens[user_id]
-
-    api_url = f"{API_ENDPOINT}?token={token}&url={url}"
-    try:
-        response = requests.get(api_url)
-        result = response.text
-
-        if "http" in result:
-            await update.message.reply_text(f"✅ Generated Link:\n{result}")
-        else:
-            await update.message.reply_text(f"❌ Error: {result}")
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ Failed to fetch shortlink.\nError: {e}")
-
-# Telegram bot init
-@app.on_event("startup")
-async def startup_event():
-    global application
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("settoken", settoken))
-    application.add_handler(CommandHandler("gen", gen))
-    
-    # Set webhook
-    await application.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
-
-# FastAPI route to receive Telegram updates
-@app.post("/webhook")
-async def telegram_webhook(req: Request):
-    data = await req.json()
-    update = Update.de_json(data, application.bot)
-    await application.update_queue.put(update)
-    return {"ok": True}
-
-# Run the app
-if __name__ == "__main__":
-    uvicorn.run("bot:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+bot.run()
